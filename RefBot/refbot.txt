@@ -1,1 +1,10 @@
 An implementation of SeeBorg for discord, with random features bolted onto it
+
+Build it w/ visual studio or using msbuild DiscordDSPTestConnect.sln 
+
+Requires the .Net framework to build/run and several configuration files (in the same dir as exe) to run:
+  configs.dat:      Holds your bot token. YOU MUST SUPPLY THIS VALUE
+  lines.txt:        Chatbot's persistent memory. Will be generated if absent.
+  ChannelInfo.tdf:  Borg's channel information. Will be generated if absent.
+  whitelist.txt:    Admin list of Discord IDs. Will be generated if absent.
+
