@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace DiscordDSPTestConnect
 {
-    class SBorgPort : DSPModule 
+    class SBorgPort : DSPModule
     {
         private struct WordLoc
         {
@@ -27,24 +27,34 @@ namespace DiscordDSPTestConnect
         private const int WOD_LEN = 4; // min length of the word of the day
         private const int WOD_EXM = 15; // min length of the word of the day example
 
-        private Random rand;
-        private List<string> lines;
-        private Dictionary<string, List<WordLoc>> words;
+        private static Random rand;
+        private static List<string> lines;
+        private static Dictionary<string, List<WordLoc>> words;
         //private Dictionary<string, ComObj> commands;
         private int minDepth;
         private int maxDepth;
+        private string lastDesc;
+        private DateTime lastDate;
+        private string lastWOD;
+
+        static SBorgPort()
+        {
+            rand = new Random();
+            lines = new List<string>();
+            words = new Dictionary<string, List<WordLoc>>();
+        }
 
         public SBorgPort() : base("borg")
         {
-            rand = new Random();
             minDepth = 1;
             maxDepth = 4;
-            lines = new List<string>();
-            words = new Dictionary<string, List<WordLoc>>();
+            lastDesc = "I haven't said anything yet...";
+            lastDate = new DateTime(1970, 1, 1);
+
             commands = new Dictionary<string, ComObj>();
-            
+
             commands.Add("context", new ComObj("contexts", "", "Get known contexts of a word. Usage: !contexts <word>", getContexts));
-            commands.Add("contexts", new ComObj("contexts", "Get known contexts of a word, up to ~1000 characters", 
+            commands.Add("contexts", new ComObj("contexts", "Get known contexts of a word, up to ~1000 characters",
                 "Get known contexts of a word. Usage: !contexts <word>", getContexts));
             commands.Add("known", new ComObj("known", "Check if a word is known",
                 "Check if a word is known. Usage: !known <word>", getKnown));
@@ -62,6 +72,8 @@ namespace DiscordDSPTestConnect
             commands.Add("features", new ComObj("feature", "", "Add a feature suggestion to a log. Usage: !feature <text>", doFeature));
             commands.Add("feature", new ComObj("feature", "Suggest a feature",
                 "Add a feature suggestion to a log. Usage: !feature <text>", doFeature));
+            commands.Add("what", new ComObj("what", "Explain the last reply", "Get a list of the contexts used for the last reply", getLastDesc));
+            commands.Add("wod", new ComObj("wod", "Word of the Day", "Get the Word of the Day for this chat", doWOD));
         }
 
         /*public string command(string input, bool isAdmin)
@@ -82,7 +94,7 @@ namespace DiscordDSPTestConnect
             return "Command not found";
         }*/
 
-        private void learnSingle(string input) // for post-formatted lines
+        private static void learnSingle(string input) // for post-formatted lines
         {
             lines.Add(input);
             string[] w = input.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
@@ -96,9 +108,9 @@ namespace DiscordDSPTestConnect
             }
         }
 
-        public string learn(string input)
+        public static string learn(string input)
         {
-            string[] s = getFormattedString(input).Split( new string[] { ". " }, StringSplitOptions.RemoveEmptyEntries);
+            string[] s = getFormattedString(input).Split(new string[] { ". " }, StringSplitOptions.RemoveEmptyEntries);
             for (int i = 0; i < s.Length; i++)
             {
                 if (lines.Contains(s[i]))
@@ -134,6 +146,9 @@ namespace DiscordDSPTestConnect
             if (wds.Count == 0)
                 wds.Add(words.Keys.ToList()[rand.Next(words.Keys.Count)]);
 
+            List<string> descLines = new List<string>();
+            List<int> lineNums = new List<int>();
+            //lastDesc = "";
             string ret = wds[rand.Next(wds.Count)];
             bool doLoop = true;
             while (doLoop) // right edge build
@@ -142,6 +157,25 @@ namespace DiscordDSPTestConnect
                 WordLoc tryLoc = words[thisWord][rand.Next(words[thisWord].Count)];
                 string[] wList = lines[tryLoc.LineNum].Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 int depth = rand.Next(maxDepth - minDepth) + minDepth;
+
+                string descLine = "";
+                for (int i = 0; i < wList.Length; i++)
+                {
+                    string w = wList[i].Trim('*', '_');
+                    if (i == tryLoc.WordNum)
+                        w = "**" + w;
+                    if (i == tryLoc.WordNum + depth)
+                        w += "**";
+                    descLine += w;
+                    if (i < wList.Length - 1)
+                        descLine += ' ';
+                }
+                if (tryLoc.WordNum + depth >= wList.Length)
+                    descLine += "**";
+                //lastDesc += descLine + "\r\n";
+                descLines.Add(descLine);
+                lineNums.Add(tryLoc.LineNum);
+
                 for (int i = 1; i <= depth; i++)
                 {
                     if (i + tryLoc.WordNum >= wList.Length)
@@ -164,6 +198,23 @@ namespace DiscordDSPTestConnect
                 WordLoc tryLoc = words[thisWord][rand.Next(words[thisWord].Count)];
                 string[] wList = lines[tryLoc.LineNum].Split(new char[] { ' ' });
                 int depth = rand.Next(maxDepth - minDepth) + minDepth;
+
+                string descLine = "";
+                for (int i = 0; i < wList.Length; i++)
+                {
+                    string w = wList[i].Trim('*', '_');
+                    if (i == tryLoc.WordNum)
+                        w += "**";
+                    if (i == tryLoc.WordNum - depth)
+                        w = "**" + w;
+                    descLine += w + ' ';
+                }
+                if (tryLoc.WordNum - depth < 0)
+                    descLine = "**" + descLine;
+                //lastDesc = descLine + "\r\n" + lastDesc;
+                descLines.Insert(0, descLine);
+                lineNums.Insert(0, tryLoc.LineNum);
+
                 for (int i = 1; i <= depth; i++)
                 {
                     if (i > tryLoc.WordNum)
@@ -177,10 +228,37 @@ namespace DiscordDSPTestConnect
                 if (depth == tryLoc.WordNum)
                     doLoop = false;
             }
+
+            if (ret.Length > 0)
+            {
+                for (int i = 1; i < descLines.Count; i++)
+                {
+                    if (lineNums[i - 1] == lineNums[i])
+                    {
+                        descLines[i - 1] = descLines[i - 1].Remove(descLines[i - 1].LastIndexOf("**"), 2).Insert(descLines[i].LastIndexOf("**"), "**");
+                        lineNums.RemoveAt(i);
+                        descLines.RemoveAt(i);
+                        i--;
+                    }
+                }
+                //if (descLines.Count > 1 && descLines[descLines.Count - 1].EndsWith(descLines[descLines.Count - 2].Substring(descLines[descLines.Count - 2].LastIndexOf(' '))))
+                //    descLines.RemoveAt(descLines.Count - 1);
+                if (descLines.Count > 1 && Regex.IsMatch(descLines[descLines.Count - 1], "\\*\\*\\S*\\*\\*$"))
+                    descLines.RemoveAt(descLines.Count - 1);
+                if (descLines.Count > 1 && Regex.IsMatch(descLines[0], "^\\*\\*\\S*\\*\\*"))
+                    descLines.RemoveAt(0);
+                lastDesc = descLines[0];
+                for (int i = 1; i < descLines.Count; i++)
+                    lastDesc += "\r\n" + descLines[i];
+            }
+
             return ret;
         }
 
-
+        public string getLastDesc(string arg)
+        {
+            return lastDesc;
+        }
 
         public string saveMem(string filename)
         {
@@ -191,13 +269,19 @@ namespace DiscordDSPTestConnect
             return "";
         }
 
-        private string getFormattedString(string s)
+        private static string getFormattedString(string s)
         {
             // convert to lower, remove new lines and quotes, hack to save !?
             s = s.ToLower().Replace("\r", "").Replace("\n", "").Replace("\"", "").Replace("? ", "?. ").Replace("! ", "!. ");
             // Remove mentions
-            s = Regex.Replace(s, "<@\\d*> ?", "");
+            s = Regex.Replace(s, "<@!\\d*> ?", "");
             s = Regex.Replace(s, "@\\w* ?", ""); // order this way to not accidentally get <@#> style without removing <>
+            return s;
+        }
+
+        private static string getPurgedString(string s)
+        {
+            s = Regex.Replace(s, "<!\\d*> ?", "");
             return s;
         }
 
@@ -217,7 +301,7 @@ namespace DiscordDSPTestConnect
 
             return "I know " + w + " words (" + i + " contexts, " + cpw + " per word), " + lines.Count + " lines.";
         }
-        
+
         private string getContexts(string inp)
         {
             if (inp == null || inp == "")
@@ -278,30 +362,26 @@ namespace DiscordDSPTestConnect
         }
 
         private string doWOD(string arg)
-        {
-            // this is procedural based on day, get number representing the day
-            int d = (DateTime.UtcNow - new DateTime(1970, 1, 1)).Days;
-            // backup and reseed generator
-            Random oldRand = rand;
-            rand = new Random(d);
+        {            
+            if (DateTime.UtcNow.Date != lastDate.Date)
+            {
+                lastDate = DateTime.Now;
 
-            // Might make this datetime an argument?
-            DateTime t = DateTime.Now;
-            
-            string rword;
+                string rword;
+                do
+                {
+                    rword = words.Keys.ToList()[rand.Next(words.Keys.Count)];
+                } while (rword.Length < WOD_LEN || rword == lastWOD || words[rword].Count < 2);
+
+                lastWOD = rword;
+            }
             string rphrase;
-
             do
             {
-                rword = words.Keys.ToList()[rand.Next(words.Keys.Count)];
-            } while (rword.Length < WOD_LEN);
-            do
-            {
-                rphrase = reply(rword);
+                rphrase = reply(lastWOD);
             } while (rphrase.Length < WOD_EXM);
 
-            rand = oldRand;
-            return "The Word of the Day for " + t.ToShortDateString() + " is '" + rword + "', as in, \"" + rphrase + "\"";
+            return "The Word of the Day for " + lastDate.ToShortDateString() + " is '" + lastWOD + "', as in, \"" + rphrase + "\"";
         }
 
         public override string loadMem()
@@ -313,230 +393,30 @@ namespace DiscordDSPTestConnect
         {
             return saveMem(filename);
         }
-        /*
-// dice chars
-private const char DV_DI = 'd';
-private const char DV_IT = '#';
-private const char DV_DR = 'l';
-private const char DV_KP = 'k';
-private const char DV_XP = 'x';
-private const char DV_TR = 't';
 
-private static int MAX_DICE_ITER = 10;
+        public static string statLoadMem(string filename)
+        {
+            try
+            {
+                StreamReader file = new StreamReader(filename);
+                while (!file.EndOfStream)
+                    learnSingle(getPurgedString(file.ReadLine()));
+                file.Close();
+            }
+            catch (IOException ex)
+            {
+                return ex.Message + "; creating new dictionary";
+            }
+            return "";
+        }
 
-private static string removeWhitespace(string text)
-{
-   return text.Replace(" ", "");
-}
-
-private static int getNumber(string text, ref int offset)
-{
-   int val = 0;
-   while (offset < text.Length)
-   {
-       if (text[offset] < '0' || text[offset] > '9')
-           break;
-       val *= 10;
-       val += text[offset] - '0';
-       offset++;
-   }
-   return val;
-}
-
-private static bool isLegal(char c)
-{
-   string legalDiceChars = "0123456789+-dklt";
-   int iter = 0;
-   while (iter < legalDiceChars.Length)
-   {
-       if (c == legalDiceChars[iter])
-           return true;
-       iter++;
-   }
-   return false;
-}
-
-private int rollFromSeg(string text)
-{
-   int val = 0;
-   bool doNeg = (text[0] == '-');
-   if (text[0] == '+' || text[0] == '-') { text = text.Substring(1); }
-   // Expected format: #d#f# (startval)(diceval)(flagval)
-   // if:
-   //   #: return #
-   //   d#<f#> assume 1d#<f#>
-   //   <d># or <f># throw
-
-   int startval, diceval;
-   int place = 0;
-   if (text[0] != 'd' && text[0] < '0' && text[0] > '9')
-       throw new Exception("Parse error: unexpected character " + text[0]);
-   if (text[0] == 'd')
-       startval = 1;
-   else
-       startval = getNumber(text, ref place);
-
-   if (place == text.Length)
-       val = startval;
-   else
-   {
-       if (text[place] != 'd')
-           throw new Exception("Parse error: unexpected character " + text[place]);
-       place++;
-       diceval = getNumber(text, ref place);
-       if (diceval <= 0)
-           throw new Exception("Parse error: dice size must be 1 or greater");
-
-       int[] diceSet = new int[startval];
-       for (int i = 0; i < startval; i++)
-           diceSet[i] = (rand.Next(diceval)) + 1;
-
-       // get flag
-       if (place == text.Length)
-       {
-           // no flag
-           for (int i = 0; i < startval; i++)
-               val += diceSet[i];
-       }
-       else
-       {
-           char f = text[place];
-           place++;
-           if (place == text.Length)
-               throw new Exception("Error: expected value after flag " + f);
-           int flagval = getNumber(text, ref place);
-           switch (f)
-           {
-               case DV_TR:
-                   // target
-                   for (int i = 0; i < startval; i++)
-                       if (diceSet[i] >= flagval)
-                           val++;
-                   break;
-               case DV_XP:
-                   // exploding dice (one iteration)
-                   for (int i = 0; i < startval; i++)
-                   {
-                       val += diceSet[i];
-                       if (diceSet[i] >= flagval)
-                           val += (rand.Next(diceval)) + 1;
-                   }
-                   break;
-               case DV_KP:
-                   // Get <flagval> highest numbers
-                   if (flagval > startval) flagval = startval;
-                   for (int i = 0; i < flagval; i++)
-                   {
-                       int highIter = 0;
-                       for (int j = 1; j < startval; j++)
-                       {
-                           if (diceSet[j] > diceSet[highIter])
-                               highIter = j;
-                       }
-                       val += diceSet[highIter];
-                       diceSet[highIter] = 0;
-                   }
-                   break;
-               case DV_DR:
-                   // Get <flagval> lowest numbers
-                   if (flagval > startval) flagval = startval;
-                   for (int i = 0; i < flagval; i++)
-                   {
-                       int lowIter = 0;
-                       for (int j = 1; j < startval; j++)
-                       {
-                           if ((diceSet[j] < diceSet[lowIter] && diceSet[j] != 0) || diceSet[lowIter] == 0)
-                               lowIter = j;
-                       }
-                       val += diceSet[lowIter];
-                       diceSet[lowIter] = 0;
-                   }
-                   break;
-               default:
-                   throw new Exception("Error: unknown flag " + f);
-           }
-       }
-   }
-
-   if (doNeg) val *= -1;
-   return val;
-}
-
-private int rollFromString(string text)
-{
-   // Do Roll
-   // Assume :
-   // Everything's already in lower case
-   // No parenthesis or brackets
-   // no mul/div
-   // no arbitrary dice size or amount (i.e. 2d4d4)
-
-   int val = 0;
-   // First: split into discrete segments of one set of dice each
-   string[] rolls = text.Split(new char[] { '+', '-' });
-   string vText;
-   if (text[0] == '+' || text[0] == '-')
-       vText = text;
-   else
-       vText = '+' + text;
-   int iter = 0; // points to next +-
-
-   foreach (string str in rolls)
-   {
-       if (vText[iter] == '-')
-           val += rollFromSeg('-' + str);
-       else val += rollFromSeg(str);
-       iter += str.Length + 1;
-   }
-   return val;
-}
-
-string doRoll(string text)
-{
-   // Prep roll string
-   string val = removeWhitespace(text).ToLower();
-
-   if (val == "")
-       return commands["roll"].Help;
-
-   string fin = "rolled: ";
-   fin += text;
-   fin += ": ";
-   try
-   {
-       // Get Iterations
-       int place = 0;
-       int iterate = getNumber(val, ref place);
-       bool isIt = false;
-       if (val[place] == DV_IT)
-       {
-           // remove the iterator
-           place++;
-           val = val.Substring(place);
-           isIt = true;
-       }
-       if (iterate > 1 && isIt)
-       {
-           if (iterate > MAX_DICE_ITER) iterate = MAX_DICE_ITER;
-           for (int i = 0; i < iterate; i++)
-           {
-               fin += "\r\n";
-               fin += (i + 1);
-               fin += "#\t";
-               fin += (rollFromString(val));
-           }
-       }
-       else
-       {
-           fin += (rollFromString(val));
-       }
-   }
-   catch (Exception ex)
-   {
-       return ex.Message;
-   }
-
-   return fin;
-}*/
+        public static string statSaveMem(string filename)
+        {
+            StreamWriter file = new StreamWriter(filename, false);
+            foreach (string line in lines)
+                file.Write(line + '\n');
+            file.Close();
+            return "";
+        }
     }
 }

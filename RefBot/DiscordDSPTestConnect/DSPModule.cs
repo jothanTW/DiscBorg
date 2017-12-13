@@ -6,6 +6,56 @@ using System.Threading.Tasks;
 
 namespace DiscordDSPTestConnect
 {
+    class DSPModuleMapMaker
+    {
+        private struct ModuleLink { public bool isStatic; public int index; public string name; }
+        private List<ModuleLink> modLinks;
+        private List<DSPModule> staticMods;
+        private List<Type> indivMods;
+
+        public DSPModuleMapMaker()
+        {
+            modLinks = new List<ModuleLink>();
+            staticMods = new List<DSPModule>();
+            indivMods = new List<Type>();
+        }
+
+        public DSPModuleMap getNewModuleMap()
+        {
+            DSPModuleMap map = new DSPModuleMap();
+            foreach(ModuleLink link in modLinks)
+            {
+                if (link.isStatic)
+                    map.add(staticMods[link.index]);
+                else
+                    map.add((DSPModule)Activator.CreateInstance(indivMods[link.index], link.name));
+            }
+            return map;
+        }
+
+        public void addStaticModule(DSPModule module)
+        {
+            ModuleLink link = new ModuleLink();
+            link.isStatic = true;
+            link.index = staticMods.Count;
+            staticMods.Add(module);
+            modLinks.Add(link);
+        }
+
+        public void addIndivModule(Type type, string name)
+        {
+            if (type.IsSubclassOf(typeof(DSPModule)))
+            {
+                ModuleLink link = new ModuleLink();
+                link.isStatic = false;
+                link.index = indivMods.Count;
+                link.name = name;
+                indivMods.Add(type);
+                modLinks.Add(link);
+            }
+        }
+    }
+
     class DSPModuleMap
     {
         public const char MOD_ID = '$';

@@ -17,7 +17,11 @@ namespace DiscordDSPTestConnect
         public string SaveString
         {
             get { return channelID + '\t' + talkRate + '\t' + lastMessage; }
-            set { string[] vals = value.Split(new char[] { '\t' }); channelID = vals[0]; lastMessage = vals[2]; try { talkRate = Convert.ToInt32(vals[1]); } catch (FormatException) { talkRate = 0; }}
+            set { string[] vals = value.Split(new char[] { '\t' });
+                channelID = vals[0];
+                lastMessage = vals[2];
+                try { talkRate = Convert.ToInt32(vals[1]); }
+                catch (FormatException) { talkRate = 0; }}
         }
         public string channelID;
         public string channelName;
@@ -32,7 +36,7 @@ namespace DiscordDSPTestConnect
     {
         static DiscordClient discord;
         static Dictionary<string, ChannelInfo> channels;
-        static SBorgPort borg;
+        //static SBorgPort borg;
         static DiceRoller roller;
         static Random rand;
         static Dictionary<string, ComObj> commands;
@@ -55,7 +59,7 @@ namespace DiscordDSPTestConnect
             rand = new Random();
             maxMessageLook = 100;
             maxMessageGet = 20000;
-            borg = new SBorgPort();
+            //borg = new SBorgPort();
 
             configs = new Dictionary<string, string>();
         }
@@ -83,7 +87,7 @@ namespace DiscordDSPTestConnect
                 commands.Add("help", new ComObj("help", "You are here.",
                     "I don't know what else to tell you.", getHelp));
 
-                borg.loadMem("lines.txt");
+                SBorgPort.statLoadMem("lines.txt");
                 Console.Out.WriteLine("Bot Memory Loaded");
 
                 loadChannels("ChannelInfo.tdf");
@@ -103,6 +107,9 @@ namespace DiscordDSPTestConnect
                         string chanID = e.Message.ChannelId.ToString();
                         if (channels.ContainsKey(chanID)) // This should now always be true
                             channels[chanID].lastMessage = e.Message.Id.ToString();
+
+
+                        SBorgPort borg = (SBorgPort)channels[chanID].modules["borg"];
                         string chanRec = "";
                         if (e.Channel.IsPrivate)
                         {
@@ -143,9 +150,9 @@ namespace DiscordDSPTestConnect
                         }
                         else
                         {
-                            borg.learn(e.Message.Content);
                             if (channels.ContainsKey(chanID) && channels[chanID].talkRate > 0 && rand.Next(channels[chanID].talkRate) == 0)
                                 ret = borg.reply(e.Message.Content);
+                            SBorgPort.learn(e.Message.Content);
                         }
 
                         if (ret.Trim().Length > 0)
@@ -181,7 +188,7 @@ namespace DiscordDSPTestConnect
                     numGuilds--;
                     if (numGuilds == 0)
                     {
-                        borg.saveMem("lines.txt");
+                        SBorgPort.statSaveMem("lines.txt");
                         saveChannels("ChannelInfo.tdf");
                         DiscordGame game = new DiscordGame();
                         game.Name = RandomGameName.getGameName();
@@ -208,7 +215,7 @@ namespace DiscordDSPTestConnect
                     {
                         await Task.Delay(1800000, exitSource.Token);
                         Console.Out.WriteLine("Backing up...");
-                        borg.saveMem("lines.txt");
+                        SBorgPort.statSaveMem("lines.txt");
                         saveChannels("ChannelInfo.tdf");
                         //saveCensors("censors.dat");
                         DiscordGame game = new DiscordGame();
@@ -224,6 +231,7 @@ namespace DiscordDSPTestConnect
             } catch (Exception e) // why would this ever happen
             {
                 Console.Out.WriteLine(e.GetType() + ": " + e.Message);
+                Console.Out.WriteLine(e.StackTrace);
             }
         }
 
@@ -329,7 +337,7 @@ namespace DiscordDSPTestConnect
                     cInfo.channelName = chan.Name;
                 }
                 cInfo.modules = new DSPModuleMap();
-                cInfo.modules.add(borg);
+                cInfo.modules.add(new SBorgPort());
                 cInfo.modules.add(new BattleshipGame());
                 cInfo.modules.add(roller);
 
@@ -348,7 +356,7 @@ namespace DiscordDSPTestConnect
                         cInfo.lastMessage = messages[0].Id.ToString(); // probably still get messages in reverse order
                         foreach (DiscordMessage message in messages)
                             if (message.Author != discord.CurrentUser && message.Content.Length > 0 && message.Content[0] != '!')
-                                borg.learn(message.Content);
+                                SBorgPort.learn(message.Content);
                     } while (mRec == maxMessageLook);
                     Console.Out.WriteLine(tmRec + " new messages loaded from channel (" + cInfo.guildName + ")" + cInfo.channelName);
                 }
@@ -373,7 +381,7 @@ namespace DiscordDSPTestConnect
                         prevMessage = messages[messages.Count - 1].Id; // probably still get messages in reverse order
                             foreach (DiscordMessage message in messages)
                                 if (message.Author != discord.CurrentUser && message.Content.Length > 0 && message.Content[0] != '!')
-                                    borg.learn(message.Content);
+                                    SBorgPort.learn(message.Content);
                     } while (mRec == maxMessageLook && tmRec < maxMessageGet);
                     Console.Out.WriteLine(tmRec + " prior messages loaded from channel (" + cInfo.guildName + ")" + cInfo.channelName);
                 }
