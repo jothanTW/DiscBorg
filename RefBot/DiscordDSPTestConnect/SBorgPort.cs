@@ -110,7 +110,7 @@ namespace DiscordDSPTestConnect
 
         public static string learn(string input)
         {
-            string[] s = getFormattedString(input).Split(new string[] { ". " }, StringSplitOptions.RemoveEmptyEntries);
+            string[] s = getFormattedString(input).Split(new string[] { ". ", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
             for (int i = 0; i < s.Length; i++)
             {
                 if (lines.Contains(s[i]))
@@ -138,7 +138,9 @@ namespace DiscordDSPTestConnect
 
         public string reply(string input)
         {
-            List<string> wds = new List<string>(getFormattedString(input).Replace(".", "").Split(new char[] { ' ' }));
+            List<string> wds = new List<string>(getFormattedString(input)
+                .Replace(". ", "")
+                .Split(new char[] { ' ' }));
             for (int i = 0; i < wds.Count; i++)
                 if (!words.ContainsKey(wds[i]))
                     wds.RemoveAt(i--);
@@ -272,7 +274,10 @@ namespace DiscordDSPTestConnect
         private static string getFormattedString(string s)
         {
             // convert to lower, remove new lines and quotes, hack to save !?
-            s = s.ToLower().Replace("\r", "").Replace("\n", "").Replace("\"", "").Replace("? ", "?. ").Replace("! ", "!. ");
+            s = s.ToLower()
+                //.Replace("\r", "")
+                //.Replace("\n", "")
+                .Replace("\"", "").Replace("? ", "?. ").Replace("! ", "!. ");
             // Remove mentions
             s = Regex.Replace(s, "<@!\\d*> ?", "");
             s = Regex.Replace(s, "@\\w* ?", ""); // order this way to not accidentally get <@#> style without removing <>
@@ -314,7 +319,8 @@ namespace DiscordDSPTestConnect
             string r = inp + " has " + words[inp].Count + " contexts:\r\n";
             for (int i = 0; i < words[inp].Count && r.Length < 1000; i++)
             {
-                r += lines[words[inp][i].LineNum] + "\r\n";
+                if (i < 1 || words[inp][i].LineNum != words[inp][i - 1].LineNum)
+                    r += lines[words[inp][i].LineNum] + "\r\n";
             }
             return r;
         }
