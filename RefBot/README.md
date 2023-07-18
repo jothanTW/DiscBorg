@@ -1,7 +1,7 @@
 An implementation of SeeBorg for discord, with random features bolted onto it
 
-Build it w/ visual studio or using msbuild DiscordDSPTestConnect.sln  
-MSBuild is downloaded with the .NET framework and can generally be found in C:/Windows/Microsoft.NET/Framework/v.\<version>/ 
+Build it w/ visual studio or using dotnet build
+Do **not** use dotnet run; the program's config files will not be where it expects them to be
 
 Requires the .Net framework to build/run and several configuration files (in the same dir as exe) to run:  
 &nbsp;&nbsp;configs.dat:      Holds your bot token. YOU MUST SUPPLY THIS VALUE  
