@@ -59,7 +59,7 @@ namespace DiscordDSPTestConnect
 
             rand = new Random();
             maxMessageLook = 100;
-            maxMessageGet = 20000;
+            maxMessageGet = 10000;
             //borg = new SBorgPort();
 
             configs = new Dictionary<string, string>();
@@ -357,7 +357,8 @@ namespace DiscordDSPTestConnect
                         foreach (DiscordMessage message in messages)
                             if (message.Author != discord.CurrentUser && message.Content.Length > 0 && message.Content[0] != '!')
                                 SBorgPort.learn(message.Content);
-                    } while (mRec == maxMessageLook);
+                        Thread.Sleep(1000);
+                    } while (tmRec < maxMessageGet);
                     Console.Out.WriteLine(tmRec + " new messages loaded from channel (" + cInfo.guildName + ")" + cInfo.channelName);
                 }
                 else
@@ -371,7 +372,7 @@ namespace DiscordDSPTestConnect
                         if (prevMessage == 0)
                             messages = await chan.GetMessagesAsync(maxMessageLook);
                         else
-                            messages = await chan.GetMessagesAfterAsync(prevMessage, maxMessageLook);
+                            messages = await chan.GetMessagesBeforeAsync(prevMessage, maxMessageLook);
                         mRec = messages.Count;
                         if (mRec == 0)
                             break;
@@ -382,6 +383,7 @@ namespace DiscordDSPTestConnect
                             foreach (DiscordMessage message in messages)
                                 if (message.Author != discord.CurrentUser && message.Content.Length > 0 && message.Content[0] != '!')
                                     SBorgPort.learn(message.Content);
+                        Thread.Sleep(1000);
                     } while (mRec == maxMessageLook && tmRec < maxMessageGet);
                     Console.Out.WriteLine(tmRec + " prior messages loaded from channel (" + cInfo.guildName + ")" + cInfo.channelName);
                 }
